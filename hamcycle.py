@@ -89,6 +89,7 @@ class Graph:
         cnf: CNF
             CNF formula we're building
         """
+        
         V = self.V
         for i in range(V):
             for j in range(V):
@@ -147,6 +148,7 @@ class Graph:
         CNF: CNF Formula corresponding to the reduction
         """
         cnf = CNF()
+        
         self.get_at_most_one(cnf)
         self.get_at_least_one(cnf)
         self.enforce_edges(cnf)
@@ -154,6 +156,7 @@ class Graph:
     
     def solve(self):
         cnf = self.get_cnf_formula()
+        print(cnf)
         cert = cnf.solve_glucose()
         # Translate SAT solution back to my language
         perm = [0]*self.V
@@ -180,7 +183,7 @@ class Graph:
             is_valid = is_valid and ( ((i, j) in self.edges or (j, i) in self.edges) )
         return is_valid
         
-g = Graph(40, 0)
+g = Graph(10, 0)
 perm = g.solve()
 print(g.check_cert(perm))
 g.draw(perm)

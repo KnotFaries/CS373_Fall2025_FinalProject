@@ -22,6 +22,7 @@ class CNF:
         clause: list of (hashable, bool)
             (variable name, [False/True])
         """
+        
         self.clauses.append([(c[0], c[1]) for c in clause]) # Clone the clause
         for c in clause:
             self.vars.add(c[0])
@@ -302,3 +303,14 @@ class CNF:
         import pickle
         with open(filename, "wb") as fout:
             pickle.dump(self.clauses, fout)
+            
+
+
+# (x0 V not x1 v x2) ^ (x0 V x1 V x2) ^ (not x0 V not x 1 not x2) ^ (not x0)
+cnf = CNF()
+cnf.add_clause([("x0",True),("x1", False), ("x2", True)]) #(x0 V not x1 v x2)
+cnf.add_clause([("x0",True), ("x1", True ), ( "x2", True)]) #(x0 V x1 V x2)
+cnf.add_clause([("x0", False)])#(not x0)
+print(cnf)
+cert = cnf.solve()
+print(cert)

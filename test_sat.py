@@ -51,3 +51,5 @@ def test_big():
     cert = c.solve()
     if len(cert) > 0:
         assert(c.is_satisfied(cert))
+        
+test_book()
