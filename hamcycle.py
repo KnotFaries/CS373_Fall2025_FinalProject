@@ -182,9 +182,11 @@ class Graph:
             j = perm[(k+1)%len(perm)]
             is_valid = is_valid and ( ((i, j) in self.edges or (j, i) in self.edges) )
         return is_valid
-        
+
+"""
 g = Graph(10, 0)
 perm = g.solve()
 print(g.check_cert(perm))
 g.draw(perm)
 plt.show()
+"""
