@@ -124,10 +124,33 @@ class Graph:
         not_edges = set([])
         for i in range(V): 
             for j in range (V):
-                if not (j, i) in self.edges:
-                    not_edges.add((i,j))
-                    not_edges.add((j,i))
+                if not (i, j) in self.edges :
+                    if not (j,i) in self.edges:
+                        #print(i,j)
+                        not_edges.add((i,j))
+                        not_edges.add((j,i))
         print(not_edges)
+        
+        for k in range (V):
+            for l in range (V):
+                if k != l:
+                    for (i,j) in not_edges:
+                        cnf.add_clause([((k,i),False), ((l,j), False)])
+        
+    def get_cnf_formula(self, k):
+        """
+        Do a reduction from this problem to SAT by filling in 
+        CNF formulas
+
+        Returns
+        -------
+        CNF: CNF Formula corresponding to the reduction
+        """
+        cnf = CNF()
+        
+        self.v_at_most(cnf, k)
+        self.in_graph(cnf, k)
+        return cnf
         
 g= Graph(6, 1)
 g.draw()
@@ -137,5 +160,9 @@ print("K cique")
 
 #g.v_at_most(cnf, [1,2,3])
 g.in_graph(cnf, [1,2,3])
+
+a= g.get_cnf_formula([1,2,3])
+print(a)
+
 #print(cnf)
     
