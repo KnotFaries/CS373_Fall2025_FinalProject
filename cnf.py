@@ -290,15 +290,66 @@ class CNF:
                 cert[vars[idx-1]] = val
         return cert
     
-    def save(self, filename):
-        """
-        Write this CNF formula to disk
+# Graph 3-Coloring Problem as CNF-SAT
+import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
 
-        Parameters
-        ----------
-        filename: string
-            Path to file to which to write this CNF formula
-        """
-        import pickle
-        with open(filename, "wb") as fout:
-            pickle.dump(self.clauses, fout)
+class GraphColoringCNF(CNF):
+    def __init__(self):
+        super().__init__()
+        self.graph = None
+        self.n_nodes = 0
+        
+    def generate_random_graph(self, n_nodes, edge_prob=0.45, seed=0):
+        np.random.seed(seed)
+        self.n_nodes = n_nodes
+        self.graph = nx.Graph()
+        self.graph.add_nodes_from(range(n_nodes))
+        
+        # Assign colors then add edges between different colors only
+        colors = np.random.randint(0, 3, n_nodes)
+        for i in range(n_nodes):
+            for j in range(i+1, n_nodes):
+                if colors[i] != colors[j] and np.random.random() < edge_prob:
+                    self.graph.add_edge(i, j)
+        
+        # Convert to CNF
+        self.clauses, self.vars = [], set([])
+        for i in range(n_nodes):
+            self.add_clause([((i,0),True), ((i,1),True), ((i,2),True)])
+            self.add_clause([((i,0),False), ((i,1),False)])
+            self.add_clause([((i,0),False), ((i,2),False)])
+            self.add_clause([((i,1),False), ((i,2),False)])
+        for i, j in self.graph.edges():
+            for c in range(3):
+                self.add_clause([((i,c),False), ((j,c),False)])
+    
+    def get_coloring(self, cert):
+        return {i: c for i in range(self.n_nodes) for c in range(3) if cert.get((i,c))}
+    
+    def plot_graph(self, coloring=None):
+        plt.figure(figsize=(8, 8))
+        pos = nx.spring_layout(self.graph, seed=42)
+        colors = ['red', 'cyan', 'yellow']
+        node_colors = [colors[coloring[i]] for i in range(self.n_nodes)] if coloring else 'lightgray'
+        nx.draw(self.graph, pos, node_color=node_colors, with_labels=True,
+                node_size=600, font_size=14, font_weight='bold', 
+                edgecolors='black', linewidths=2, width=2)
+        plt.title("Graph 3-Coloring", fontsize=16, fontweight='bold')
+
+
+if __name__ == "__main__":
+    gc = GraphColoringCNF()
+    gc.generate_random_graph(10, seed=42)
+    print(f"Graph: {gc.graph.number_of_nodes()} nodes, {gc.graph.number_of_edges()} edges")
+    
+    solution = gc.solve()
+    if solution:
+        coloring = gc.get_coloring(solution)
+        print(f"✓ Solution: {coloring}")
+        gc.plot_graph(coloring)
+        plt.savefig('graph_coloring.png', dpi=150, bbox_inches='tight')
+    else:
+        print("✗ No solution")
+
