@@ -3,11 +3,24 @@
 Created on Fri Dec  5 14:20:42 2025
 
 @author: maiam
+@author: russella
+@author: jaheimo
+
+Graph class:
+    - Generate a random graph with V vertices and edges.
+    - Reduce the k-clique problem to SAT using a CNF formula.
+        - CNF variables (i, j) is True <=> "position i in the clique uses vertex j"
+    - Positions i range from 0 to k-1
+    - Positions j range from 0 to V-1
+    - We call CNF's SAT solver
+
 """
 
 from cnf import CNF
 import numpy as np
 import matplotlib.pyplot as plt
+import random
+import time
 
 
 class Graph:
@@ -57,7 +70,7 @@ class Graph:
     def draw(self, perm=[]):
         """
         perm: list of V indices
-            Permutation certificate of the ham cycle
+            Permutation certificate of the clique
         """
         V = self.V
         theta = np.linspace(0, 2*np.pi, V+1)[0:V]
@@ -72,7 +85,7 @@ class Graph:
         ## Draw the certificate permutation
         for k in range(len(perm)):
             i = perm[k]
-            j = perm[(k+1)%V]
+            j = perm[(k+1)%len(perm)]
             plt.plot([x[i], x[j]], [y[i], y[j]], c='C1', linestyle='--', linewidth=1)
         if len(perm) > 0:
             chunk_size = 20
@@ -86,56 +99,68 @@ class Graph:
             plt.title(s)
         plt.axis("off")
         
-    def k_at_most(self, cnf,k):
+    def k_at_most(self, cnf, k):
         """
-
+        Add "at most one vertex per clique position" constraints to the CNF
         Parameters
         ----------
-        cnf : List
-            DESCRIPTION.
-        k : array
-            The cique
-
-        Returns
-        -------
-        None.
-
+        cnf : CNF
+            CNF formula we're building
+        k : int
+            The clique size
         """
         V= self.V #num verticies
-       
-        for i in k:
+        for i in range(k):
             for j in range (V):
-                for l in range (V):
-                    if j != l:
-                        cnf.add_clause([((i,j), False), ((i,l), False)])
+                for l in range (j+1, V):
+                    cnf.add_clause([((i,j), False), ((i,l), False)])
                 
             
     def v_at_most(self, cnf, k):
-        V= self.V #num verticies
-       
+        """
+        Add "per vertex appears in at most one clique position" constraints to the CNF
+        Parameters
+        ----------
+        cnf : CNF
+            CNF formula we're building
+        k : int
+            The clique size
+        """
+        V = self.V #num verticies
         for j in range (V):
-            for l in range (V):
-                for i in range(V):
-                    if i != l:
-                        cnf.add_clause([((i,j), False), ((l,j), False)])
-                
+            for i in range (k):
+                for l in range(i+1, k):
+                    cnf.add_clause([((i,j), False), ((l,j), False)])
+    
+    def k_at_least(self, cnf, k):
+        """
+        Add "at least one vertex per clique position" constraints to the CNF
+        Parameters
+        ----------
+        cnf : CNF
+            CNF formula we're building
+        k : int
+            The clique size
+        """
+        V = self.V #num verticies
+        for i in range(k):
+            clause = []
+            for j in range (V):
+                clause.append(((i, j), True))
+            cnf.add_clause(clause)
+
     def in_graph(self, cnf, k):
         V = self.V
         not_edges = set([])
         for i in range(V): 
-            for j in range (V):
-                if not (i, j) in self.edges :
-                    if not (j,i) in self.edges:
-                        #print(i,j)
-                        not_edges.add((i,j))
-                        not_edges.add((j,i))
-        print(not_edges)
-        
-        for k in range (V):
-            for l in range (V):
-                if k != l:
-                    for (i,j) in not_edges:
-                        cnf.add_clause([((k,i),False), ((l,j), False)])
+            for j in range (i+1, V):
+                if (i, j) not in self.edges and (j,i) not in self.edges:
+                    not_edges.add((i,j))
+        for m in range (k):
+            for l in range (m+1, k):
+                for (i, j) in not_edges:
+                    cnf.add_clause([((m, i), False), ((l, j), False)])
+                    cnf.add_clause([((m, j), False), ((l, i), False)])
         
     def get_cnf_formula(self, k):
         """
@@ -147,15 +172,114 @@ class Graph:
         CNF: CNF Formula corresponding to the reduction
         """
         cnf = CNF()
-        
+        self.k_at_most(cnf, k)
         self.v_at_most(cnf, k)
+        self.k_at_least(cnf, k)
         self.in_graph(cnf, k)
         return cnf
+    
+    def solve(self, k):
+        cnf = self.get_cnf_formula(k)
+        cert = cnf.solve_glucose()
+
+        if len(cert) == 0:
+            return []
+        
+        # Translate SAT solution back to my language
+        pos_to_vertex = {}
+        for (i, j), val in cert.items():
+            if val:
+                if i not in pos_to_vertex:
+                    pos_to_vertex[i] = j
+        clique = [pos_to_vertex[i] for i in sorted(pos_to_vertex.keys())]
+        return clique
+    
+    def check_cert(self, clique, k):
+        is_valid = True
+        ## Step 1: Check that it's k size
+        if len(clique) != k:
+            is_valid = False
+        ## Step 2: Check edges between all pairs
+        for i in range(k):
+            for j in range(i+1, k):
+                c_i, c_j = clique[i], clique[j]
+                is_valid = is_valid and ((c_i, c_j) in self.edges or (c_j, c_i) in self.edges)
+        return is_valid
 
 
-g= Graph(6, 1)
-g.draw()
-cnf = CNF()
+def search_hard_instances(num_trials=100):
+    hardest_time = -1
+    hardest_info = None
 
-print("K cique")
+    for trial in range(num_trials):
+            # Randomly sample graph size
+            V = random.randint(10, 22)
+            # Randomly sample clique size
+            k = random.randint(3, min(6, V - 1))
+            # Random seed
+            seed = random.randint(0, 10)
+            # Enforce the rule: variables = V * k <= 200
+            if V * k > 200:
+                continue
+            g = Graph(V, seed)
+            cnf = g.get_cnf_formula(k)
+            num_vars = len(cnf.vars)
+            num_clauses = len(cnf.clauses)
+            if num_vars > 200:
+                continue
+            t0 = time.time()
+            cert = cnf.solve_glucose()
+            t1 = time.time()
+            runtime = t1 - t0
 
+            sat = (len(cert) > 0)
+
+            if sat and runtime > hardest_time:
+                hardest_time = runtime
+                hardest_info = {
+                    "V": V,
+                    "k": k,
+                    "seed": seed,
+                    "time": runtime,
+                    "sat": sat,
+                    "num_vars": num_vars,
+                    "num_clauses": num_clauses,
+                    "cnf": cnf
+                }
+    if not hardest_info:
+        print("No valid instances found.")
+        return
+    # Save the hardest found instance
+    filename = "hard_kclique_instance_random.cnf"
+    hardest_info["cnf"].save(filename)
+
+    print("\n\nHARD INSTANCE FOUND")
+    print(f"Saved as: {filename}")
+    print(f"V = {hardest_info['V']}")
+    print(f"k = {hardest_info['k']}")
+    print(f"seed = {hardest_info['seed']}")
+    print(f"sat = {hardest_info['sat']}")
+    print(f"num_vars = {hardest_info['num_vars']}")
+    print(f"num_clauses = {hardest_info['num_clauses']}")
+    print(f"runtime = {hardest_info['time']:.3f}s")
+
+## Test Parts 2 and 3
+num_V = 19
+k = 3
+seed = 10
+g = Graph(num_V, seed)
+clique = g.solve(k)
+if not clique:
+    print(f"{k}-clique not found.")
+else:
+    print(f"Clique: {clique}")
+    print(f"Valid: {g.check_cert(clique, k)}")
+    g.draw(clique)
+    plt.show()
+
+## Search for hard instance for Part 4
+# Hardest run so far:
+# V = 19
+# k = 3
+# seed = 10
+# search_hard_instances()
