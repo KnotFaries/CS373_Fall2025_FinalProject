@@ -289,6 +289,16 @@ class CNF:
                     val = False
                 cert[vars[idx-1]] = val
         return cert
+    def save(self, filename):
+        vars_list = list(self.vars)
+        clauses = self._get_glucose_encoded()
+        with open(filename, "w") as f:
+            # num_vars num_clauses
+            f.write(f"p cnf {len(vars_list)} {len(clauses)}\n")
+            for clause in clauses:
+                # each clause is a list of ints; end with 0
+                line = " ".join(str(list_of_ints) for list_of_ints in clause) + " 0\n"
+                f.write(line)
     
 # Graph 3-Coloring Problem as CNF-SAT
 import numpy as np
